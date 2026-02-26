@@ -69,7 +69,6 @@ codex --worktree
 ```
 
 New worktrees are created under `~/.codex/worktrees/` (or `$CODEX_HOME/worktrees/` when `CODEX_HOME` is set).
-If the requested branch is already checked out in an existing worktree, Codex reuses that worktree path.
 Codex keeps worktrees after exit and prints a cleanup command (`git worktree remove <path>`).
 
 ### Experimenting with the Codex Sandbox

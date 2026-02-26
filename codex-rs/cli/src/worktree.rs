@@ -18,7 +18,6 @@ pub(crate) const WORKTREE_AUTO_BRANCH_SENTINEL: &str = "__codex_worktree_auto_br
 pub(crate) struct WorktreeLaunchResult {
     pub(crate) branch: String,
     pub(crate) path: PathBuf,
-    pub(crate) reused_existing: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -45,8 +44,7 @@ pub(crate) fn prepare_worktree_launch(
     let codex_home =
         find_codex_home().context("failed to resolve codex home for worktree storage")?;
 
-    let mut worktrees = list_worktrees(&repo_root)?;
-    let mut branch_checked_out_in_primary = false;
+    let worktrees = list_worktrees(&repo_root)?;
     let branch = match requested_branch {
         Some(branch) => {
             let trimmed = branch.trim();
@@ -57,44 +55,6 @@ pub(crate) fn prepare_worktree_launch(
         }
         None => choose_auto_branch_name(&repo_root, &worktrees)?,
     };
-
-    if let Some(existing) = find_worktree_for_branch(&worktrees, &branch) {
-        if existing.path.exists() {
-            let existing_path =
-                std::fs::canonicalize(&existing.path).unwrap_or(existing.path.clone());
-            if existing_path == repo_root {
-                branch_checked_out_in_primary = true;
-            } else {
-                return Ok(WorktreeLaunchResult {
-                    branch,
-                    path: existing.path.clone(),
-                    reused_existing: true,
-                });
-            }
-        }
-
-        run_git_checked(
-            &repo_root,
-            &[OsString::from("worktree"), OsString::from("prune")],
-        )?;
-        worktrees = list_worktrees(&repo_root)?;
-
-        if let Some(existing) = find_worktree_for_branch(&worktrees, &branch)
-            && existing.path.exists()
-        {
-            let existing_path =
-                std::fs::canonicalize(&existing.path).unwrap_or(existing.path.clone());
-            if existing_path == repo_root {
-                branch_checked_out_in_primary = true;
-            } else {
-                return Ok(WorktreeLaunchResult {
-                    branch,
-                    path: existing.path.clone(),
-                    reused_existing: true,
-                });
-            }
-        }
-    }
 
     let destination = worktree_destination(&repo_root, &codex_home, &branch);
 
@@ -124,6 +84,11 @@ pub(crate) fn prepare_worktree_launch(
 
     let branch_exists = branch_exists(&repo_root, &branch)?;
     if branch_exists {
+        let branch_checked_out_in_primary = worktrees.iter().any(|entry| {
+            entry.branch.as_deref() == Some(branch.as_str())
+                && std::fs::canonicalize(&entry.path).unwrap_or(entry.path.clone()) == repo_root
+        });
+
         let mut args = vec![
             OsString::from("worktree"),
             OsString::from("add"),
@@ -152,7 +117,6 @@ pub(crate) fn prepare_worktree_launch(
     Ok(WorktreeLaunchResult {
         branch,
         path: final_path,
-        reused_existing: false,
     })
 }
 
@@ -230,15 +194,6 @@ fn sanitize_for_path(value: &str) -> String {
     } else {
         trimmed.to_string()
     }
-}
-
-fn find_worktree_for_branch<'a>(
-    worktrees: &'a [WorktreeEntry],
-    branch: &str,
-) -> Option<&'a WorktreeEntry> {
-    worktrees
-        .iter()
-        .find(|entry| entry.branch.as_deref() == Some(branch))
 }
 
 fn branch_exists(repo_root: &Path, branch: &str) -> Result<bool> {

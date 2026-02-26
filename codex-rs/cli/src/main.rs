@@ -424,11 +424,6 @@ fn format_exit_messages(
     }
 
     if let Some(worktree_result) = worktree_result {
-        let action = if worktree_result.reused_existing {
-            "Using"
-        } else {
-            "Created"
-        };
         let quoted_path = format!(
             "'{}'",
             worktree_result
@@ -438,7 +433,7 @@ fn format_exit_messages(
                 .replace('\'', "'\\''")
         );
         lines.push(format!(
-            "{action} git worktree `{}` on branch `{}`.",
+            "Created git worktree `{}` on branch `{}`.",
             worktree_result.path.display(),
             worktree_result.branch
         ));
